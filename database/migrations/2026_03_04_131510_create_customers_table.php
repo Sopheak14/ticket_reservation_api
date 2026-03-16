@@ -12,16 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('customers', function (Blueprint $table) {
-            $table->id('customer_id');
+            $table->bigIncrements('customer_id'); // Primary key
             $table->unsignedBigInteger('user_id')->nullable();
             $table->string('name', 150);
             $table->string('phone', 20);
             $table->string('email', 150)->nullable();
+            $table->string('status', 20)->default('active'); // Added status column
             $table->timestamps();
             $table->softDeletes();
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
             $table->index(['phone', 'name']);
         });
+
     }
 
     /**
