@@ -114,7 +114,6 @@ class VehicleController extends Controller
             if (isset($data['seat_capacity'])) {
                 // Clear old seats
                 $vehicle->seats()->delete();
-
                 // Generate new seats
                 $total   = $data['seat_capacity'];
                 $created = 0;

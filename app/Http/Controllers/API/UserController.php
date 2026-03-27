@@ -29,22 +29,42 @@ class UserController extends Controller
     // POST /api/users
     public function store(Request $request): JsonResponse
     {
+        // Validation (without role_id for first user)
         $data = $request->validate([
-            'role_id'  => 'required|exists:roles,role_id',
+            'role_id'  => 'nullable|exists:roles,role_id', // optional if first user
             'name'     => 'required|string|max:150',
             'phone'    => 'required|string|max:20|unique:users,phone',
-            'email'    => 'nullable|email|max:150|unique:users,email',
+            'email'    => 'required|email|max:150|unique:users,email',
             'password' => 'required|string|min:6',
-            'status'   => 'in:active,inactive,disabled',
+            'status'   => 'nullable|in:active,inactive,disabled',
         ]);
 
+        // Default status
+        $data['status'] = $data['status'] ?? 'active';
+
+        // Hash password
         $data['password'] = Hash::make($data['password']);
+
+        //First user? assign Admin role automatically
+        if (User::count() === 0) {
+            $role = Role::where('role_name', 'Admin')->first();
+            $data['role_id'] = $role->role_id;
+        } else {
+            // For other users, role_id must come from frontend
+            if (empty($data['role_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'role_id is required for non-admin users'
+                ], 422);
+            }
+        }
+
         $user = User::create($data);
 
         return response()->json([
             'success' => true,
             'message' => 'User created successfully',
-            'data'    => $user->load('role'),
+            'data'    => $user->load('role'), // include role info
         ], 201);
     }
 
@@ -64,21 +84,24 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
+        // ✅ Validate
         $data = $request->validate([
-            'role_id'  => 'exists:roles,role_id',
-            'name'     => 'string|max:150',
-            'phone'    => "string|max:20|unique:users,phone,{$id}",
-            'email'    => "nullable|email|max:150|unique:users,email,{$id}",
+            'role_id'  => 'nullable|exists:roles,role_id',
+            'name'     => 'required|string|max:150',
+            'phone'    => 'required|string|max:20|unique:users,phone,' . $user->id,
+            'email'    => 'nullable|email|max:150|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:6',
-            'status'   => 'in:active,inactive,disabled',
+            'status'   => 'required|in:active,inactive,disabled',
         ]);
 
+        // ✅ Password (optional)
         if (!empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         } else {
             unset($data['password']);
         }
 
+        // ✅ Update user
         $user->update($data);
 
         return response()->json([
@@ -87,6 +110,7 @@ class UserController extends Controller
             'data'    => $user->fresh()->load('role'),
         ]);
     }
+
 
     // DELETE /api/users/{id}
     public function destroy(int $id): JsonResponse
